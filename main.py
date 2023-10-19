@@ -47,22 +47,36 @@ def parse_page(url):
     # Добавление основного изображения в начало списка
     image_urls.insert(0, main_image_url)
 
+    offer_id = url.rstrip('/').split('/')[-1]
+
+    old_price_section = soup.find('p', class_='block8_order__price--old')
+    if old_price_section:
+        old_price = old_price_section.text.strip().replace(' Р', '')
+    else:
+        old_price = None
+
     # Создание YML
     yml = f"""
-    <offer>
+    <offer id="{offer_id}" available="true">
         <name>{product_name}</name>
         <url>{url}</url>
+    """
+    if old_price:
+        yml += f"<oldprice>{old_price}</oldprice>\n"
+    yml += f"<price>{price}</price>\n"
+    f"""
         <price>{price}</price>
         <currencyId>RUR</currencyId>
         <categoryId>1</categoryId>
     """
+
     for img_url in image_urls:
         yml += f"<picture>{img_url}</picture>\n"
 
     yml += f"""
-        <width>{width}</width>
-        <depth>{depth}</depth>
-        <height>{height}</height>
+        <param name="Ширина">{width}</param>
+        <param name="Глубина">{depth}</param>
+        <param name="Высота">{height}</param>
         <vendor>{brand}</vendor>
         <description>{description}</description>
     </offer>
@@ -80,14 +94,16 @@ for url in urls:
     offers.append(parse_page(url))
 
 # Сохранение всех товаров в одном YML файле
-current_date = datetime.now().strftime("%Y-%m-%d")
-filename = f"Ofme - {current_date}.yml"
+current_date = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
 
-header = """<?xml version="1.0" encoding="UTF-8"?>
+filename = f"Ofme - {current_date.replace(':', '-')}.yml"
+
+
+header = f"""<?xml version="1.0" encoding="UTF-8"?>
 <yml_catalog date="{current_date}">
 <shop>
-<name>Ofme</name>
-<company>Ofme</company>
+<name>OFME</name>
+<company>OFME</company>
 <url>https://www.ofme.ru/</url>
 <currencies>
 <currency id="RUR" rate="1"/>
