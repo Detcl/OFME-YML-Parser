@@ -34,7 +34,11 @@ def parse_page(url):
     width = soup.find('div', class_='block8_r2').find('p', string='Ширина:').find_next_sibling('p').text.strip()
     depth = soup.find('div', class_='block8_r2').find('p', string='Глубина:').find_next_sibling('p').text.strip()
     height = soup.find('div', class_='block8_r2').find('p', string='Высота:').find_next_sibling('p').text.strip()
-    brand = soup.find('p', itemprop='brand').text.strip()
+    brand_section = soup.find('p', itemprop='brand')
+    if brand_section:
+        brand = brand_section.text.strip()
+    else:
+        brand = None
     price = soup.find('p', itemprop='price')['content'].strip()
     description_section = soup.find('div', itemprop='description')
     description = description_section.text.strip()
@@ -44,8 +48,30 @@ def parse_page(url):
     image_urls = [img['src'] for img in description_images if 'src' in img.attrs]
     image_urls = ["https://www.ofme.ru" + img_url for img_url in image_urls]
 
-    # Добавление основного изображения в начало списка
-    image_urls.insert(0, main_image_url)
+    # Проверка изображений на код ответа 200
+    valid_image_urls = []
+    for img_url in image_urls:
+        corrected_url = img_url.replace('https://www.ofme.ruhttp://ofme.ru', 'https://ofme.ru').strip()  # Удаление лишних пробелов
+        try:
+            img_response = requests.head(corrected_url, allow_redirects=True)
+            if img_response.status_code == 200:
+                valid_image_urls.append(corrected_url)
+        except requests.RequestException:
+            print(f"Ошибка при запросе изображения: {corrected_url}")
+
+        if len(valid_image_urls) == 19:  # Ограничение в 20 изображений
+            break
+
+        # Добавление основного изображения в начало списка, если оно не превышает лимит
+    main_image_url = "https://www.ofme.ru" + soup.find('img', itemprop='image')[
+        'src'].strip()  # Удаление лишних пробелов
+    if main_image_url not in valid_image_urls:
+        try:
+            main_img_response = requests.head(main_image_url, allow_redirects=True)
+            if main_img_response.status_code == 200:
+                valid_image_urls.insert(0, main_image_url)
+        except requests.RequestException:
+            print(f"Ошибка при запросе основного изображения: {main_image_url}")
 
     offer_id = url.rstrip('/').split('/')[-1]
 
@@ -64,15 +90,16 @@ def parse_page(url):
     if old_price:
         yml += f"<oldprice>{old_price}</oldprice>\n"
     yml += f"<price>{price}</price>\n"
-    f"""
-        <price>{price}</price>
+    yml += f"""
         <currencyId>RUR</currencyId>
         <categoryId>1</categoryId>
     """
 
-    for img_url in image_urls:
+    # Добавление изображений
+    for img_url in valid_image_urls:
         yml += f"<picture>{img_url}</picture>\n"
 
+    # Добавление остальных данных
     yml += f"""
         <param name="Ширина">{width}</param>
         <param name="Глубина">{depth}</param>
